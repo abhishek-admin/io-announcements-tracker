@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>I/O Announcements Tracker</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    :root { --accent: #ec4899; }
+
+    /* Onboarding */
+    #onboarding { display: flex; flex-direction: column; gap: 10px; }
+    .onboarding-title { font-size: 15px; font-weight: 700; color: #e0e0e8; }
+    .onboarding-desc { font-size: 12px; color: #8888a0; line-height: 1.65; }
+    .onboarding-desc strong { color: #c8c8dc; }
+    .onboard-field { display: flex; flex-direction: column; gap: 5px; }
+    .settings-hint a { color: var(--accent); text-decoration: none; }
+    .settings-hint a:hover { text-decoration: underline; }
+
+    /* Progress subtitle */
+    .progress-text { font-size: 11px; color: #555568; }
+    .progress-text span { color: #e0e0e8; font-weight: 600; }
+
+    /* Summary card */
+    .summary-card {
+      background: rgba(236,72,153,0.07); border: 1px solid rgba(236,72,153,0.18);
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 4px;
+      font-size: 12px; color: #c8a0b8; line-height: 1.6;
+    }
+    .summary-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+      text-transform: uppercase; color: #ec4899; margin-bottom: 5px;
+    }
+
+    /* Filter pills */
+    .filter-row {
+      display: flex; gap: 5px; flex-wrap: nowrap;
+      overflow-x: auto; padding-bottom: 2px;
+    }
+    .filter-row::-webkit-scrollbar { display: none; }
+    .pill {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 20px; padding: 4px 10px; font-size: 11px;
+      color: #8888a0; cursor: pointer; white-space: nowrap;
+      transition: all 0.15s; font-family: inherit;
+    }
+    .pill:hover { color: #e0e0e8; border-color: rgba(255,255,255,0.18); }
+    .pill.active {
+      background: var(--accent); border-color: var(--accent);
+      color: #fff; font-weight: 600;
+    }
+    .pill-count { opacity: 0.7; font-size: 10px; margin-left: 2px; }
+
+    /* Announcement list */
+    #announcement-list {
+      display: flex; flex-direction: column; gap: 4px;
+      max-height: 300px; overflow-y: auto; padding-right: 2px;
+    }
+    #announcement-list::-webkit-scrollbar { width: 3px; }
+    #announcement-list::-webkit-scrollbar-track { background: transparent; }
+    #announcement-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+    .announce-item {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px; overflow: hidden; transition: border-color 0.15s;
+    }
+    .announce-item:hover { border-color: rgba(255,255,255,0.12); }
+    .announce-item.is-read { opacity: 0.5; }
+
+    .announce-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 10px; cursor: pointer;
+    }
+
+    /* Custom checkbox */
+    .read-checkbox { display: none; }
+    .check-box {
+      width: 16px; height: 16px; flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.2); border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; cursor: pointer;
+    }
+    .read-checkbox:checked + .check-box {
+      background: var(--accent); border-color: var(--accent);
+    }
+    .read-checkbox:checked + .check-box::after {
+      content: '✓'; font-size: 10px; color: white; font-weight: 700; line-height: 1;
+    }
+
+    .announce-title {
+      flex: 1; font-size: 12.5px; font-weight: 500;
+      color: #d0d0e0; line-height: 1.35;
+    }
+    .cat-badge {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.3px;
+      padding: 2px 6px; border-radius: 10px; text-transform: uppercase;
+      background: rgba(255,255,255,0.06); color: #6668a0; flex-shrink: 0;
+    }
+    .chevron {
+      font-size: 14px; color: #444460; transition: transform 0.2s; flex-shrink: 0;
+    }
+    .announce-item.expanded .chevron { transform: rotate(90deg); }
+
+    .announce-detail {
+      padding: 0 10px 10px 34px;
+      font-size: 11.5px; color: #8888a0; line-height: 1.6;
+    }
+    .announce-detail.hidden { display: none; }
+    .announce-link {
+      display: inline-block; margin-top: 5px;
+      font-size: 11px; color: var(--accent); text-decoration: none;
+    }
+    .announce-link:hover { text-decoration: underline; }
+
+    .no-results {
+      text-align: center; color: #444460; font-size: 12px; padding: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <span class="logo">✦</span>
+        <h1>I/O '26 Tracker</h1>
+      </div>
+      <div class="header-right">
+        <span class="badge">Gemini</span>
+        <button id="settings-btn" class="settings-btn" title="API Settings">⚙</button>
+      </div>
+    </div>
+
+    <!-- ONBOARDING -->
+    <div id="onboarding" class="hidden">
+      <p class="onboarding-title">👋 Welcome! Add your API key</p>
+      <p class="onboarding-desc">Track every <strong>Google I/O 2026 announcement</strong> — filter by category, mark what you've read, and let Gemini write the developer summary.</p>
+      <p class="onboarding-desc" style="margin-top:4px;">Enter a <strong>Gemini</strong> or <strong>OpenRouter</strong> key to get started:</p>
+      <div class="onboard-field">
+        <label class="settings-label">Gemini API Key <span class="settings-hint">— <a href="https://aistudio.google.com/app/apikey" target="_blank">Get free key ↗</a></span></label>
+        <div class="settings-row">
+          <input type="password" id="onboard-gemini-input" class="settings-input" placeholder="AIza..." />
+          <button id="onboard-toggle-gemini" class="toggle-vis-btn">👁</button>
+        </div>
+      </div>
+      <div class="onboard-field">
+        <label class="settings-label">OpenRouter API Key <span class="settings-hint">— <a href="https://openrouter.ai/keys" target="_blank">Get key ↗</a></span></label>
+        <div class="settings-row">
+          <input type="password" id="onboard-openrouter-input" class="settings-input" placeholder="sk-or-..." />
+          <button id="onboard-toggle-openrouter" class="toggle-vis-btn">👁</button>
+        </div>
+      </div>
+      <button id="onboard-save-btn" class="primary-btn">Get Started →</button>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main-content">
+      <p class="progress-text subtitle">
+        <span id="read-count">0</span>/<span id="total-count">18</span> announcements read
+      </p>
+
+      <button id="summary-btn" class="primary-btn">✦ Gemini Summary</button>
+
+      <div id="summary-area"></div>
+
+      <div class="filter-row" id="filter-row">
+        <button class="pill active" data-cat="all">All <span class="pill-count">18</span></button>
+        <button class="pill" data-cat="gemini">Gemini <span class="pill-count">5</span></button>
+        <button class="pill" data-cat="android">Android <span class="pill-count">3</span></button>
+        <button class="pill" data-cat="chrome">Chrome <span class="pill-count">3</span></button>
+        <button class="pill" data-cat="cloud">Cloud <span class="pill-count">4</span></button>
+        <button class="pill" data-cat="search">Search <span class="pill-count">3</span></button>
+      </div>
+
+      <div id="announcement-list"></div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div id="settings-panel" class="hidden">
+      <div class="settings-header">
+        <span>API Settings</span>
+        <button id="settings-close" class="settings-close">✕</button>
+      </div>
+      <div class="settings-body">
+        <label class="settings-label">Gemini API Key</label>
+        <div class="settings-row">
+          <input type="password" id="gemini-key-input" class="settings-input" placeholder="Paste Gemini key..." />
+          <button id="toggle-gemini-key" class="toggle-vis-btn">👁</button>
+        </div>
+        <label class="settings-label">OpenRouter API Key <span class="settings-hint">(fallback)</span></label>
+        <div class="settings-row">
+          <input type="password" id="openrouter-key-input" class="settings-input" placeholder="Paste OpenRouter key..." />
+          <button id="toggle-openrouter-key" class="toggle-vis-btn">👁</button>
+        </div>
+        <div class="settings-actions">
+          <button id="save-keys-btn" class="primary-btn" style="padding:8px 12px;font-size:12px;">Save Keys</button>
+          <button id="clear-keys-btn" class="secondary-btn">Clear All Keys</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Built by <a href="https://x.com/happy_ships" target="_blank">@happy_ships</a></span>
+      <span>Day 13/180</span>
+    </div>
+  </div>
+
+  <script src="gemini.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
